@@ -1,14 +1,18 @@
 mod game;
 mod model;
+mod reward;
 
 use game::Game;
 use model::Tier;
 use std::io;
 
+use crate::model::SpinResult;
+
 fn main() {
     let mut game = Game::new();
 
     game.add_habit("Reading".to_string());
+    let rewards = reward::load_rewards();
 
     loop {
         println!();
@@ -59,9 +63,17 @@ fn main() {
                         "Activated! {:?}", tier
                     );
 
-                    let reward = game.spin(tier);
-                    println!("Recieved Reward {:?}", reward);
-                    // spin wheel later
+                    let reward_type = game.spin(tier);
+                    match reward_type {
+                        SpinResult::Reward(_) | SpinResult::Jackpot => {
+                            let reward = rewards.random_reward(&reward_type);
+                            println!("{:#?}", reward);
+                        }
+
+                        SpinResult::Bonus(tier) => {
+                            println!("Bonus for {:?}", tier);
+                        }
+                    }                   
                 } else {
                     println!(
                         "Not enough clips!"

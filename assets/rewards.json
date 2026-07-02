@@ -1,0 +1,38 @@
+{
+  "tier1": [
+    {
+      "title": "5 mins YouTube",
+      "duration": 5,
+      "description": "Watch YouTube guilt-free."
+    },
+    {
+      "title": "Tea Break",
+      "duration": 10,
+      "description": "Make yourself a cup of tea."
+    }
+  ],
+
+  "tier2": [
+    {
+      "title": "30 mins Gaming",
+      "duration": 30,
+      "description": "Play your favourite game."
+    }
+  ],
+
+  "tier3": [
+    {
+      "title": "Movie Night",
+      "duration": 120,
+      "description": "Watch a movie."
+    }
+  ],
+
+  "jackpot": [
+    {
+      "title": "Order Pizza",
+      "duration": 0,
+      "description": "Treat yourself."
+    }
+  ]
+}

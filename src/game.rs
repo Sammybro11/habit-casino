@@ -39,7 +39,7 @@ impl Game {
     pub fn complete_habit(&mut self, index: usize) -> Clip {
         self.habits[index].completions += 1;
 
-        let clip = Self::random_clip();
+        let clip = Clip::random_clip();
         *self.inventory.entry(clip).or_insert(0) += 1;
         clip
     }
@@ -138,23 +138,10 @@ impl Game {
                     Tier::Three => SpinResult::Reward(Tier::Three),
                 }
             }
-            90..98 => SpinResult::Bonus,
+            90..98 => SpinResult::Bonus(tier),
             _ => SpinResult::Jackpot,
         }
     }
 
-    fn random_clip() -> Clip {
-        let roll = rand::rng().random_range(0..100);
-
-        match roll {
-            0..15 => Clip::Red,
-            15..30 => Clip::Blue,
-            30..45 => Clip::Green,
-            45..60 => Clip::Yellow,
-            60..75 => Clip::Purple,
-            75..90 => Clip::Orange,
-            _ => Clip::Gold,
-        }
-    }
 
 }
