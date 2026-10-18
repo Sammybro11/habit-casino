@@ -1,17 +1,36 @@
-use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 
 use habit_casino_core::{
     game::Game,
     model::{Clip, CompleteResult, Habit, RewardDesc, RewardTable, SpinResult, Tier},
     reward, save,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 
 struct AppState {
     game: Mutex<Game>,
     rewards: RewardTable,
     save_path: PathBuf,
+    reward_log: Mutex<Vec<EarnedReward>>,
+    reward_log_path: PathBuf,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct EarnedReward {
+    id: u64,
+    used: bool,
+    reward: RewardDesc,
+}
+
+fn save_reward_log(log: &[EarnedReward], path: &Path) {
+    if let Ok(json) = serde_json::to_string_pretty(log) {
+        let _ = std::fs::write(path, json);
+    }
 }
 
 #[derive(Serialize)]
@@ -73,7 +92,31 @@ fn spin(tier: Tier, state: State<AppState>) -> Result<SpinOutcome, String> {
         SpinResult::Bonus(_) => None,
     };
     let _ = save::save_game(&game, &state.save_path);
+    if let Some(reward) = &reward {
+        let mut log = state.reward_log.lock().unwrap();
+        let id = log.iter().map(|r| r.id).max().unwrap_or(0) + 1;
+        log.push(EarnedReward {
+            id,
+            used: false,
+            reward: reward.clone(),
+        });
+        save_reward_log(&log, &state.reward_log_path);
+    }
     Ok(SpinOutcome { result, reward })
+}
+
+#[tauri::command]
+fn reward_log(state: State<AppState>) -> Vec<EarnedReward> {
+    state.reward_log.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn use_reward(id: u64, state: State<AppState>) {
+    let mut log = state.reward_log.lock().unwrap();
+    if let Some(entry) = log.iter_mut().find(|r| r.id == id) {
+        entry.used = true;
+    }
+    save_reward_log(&log, &state.reward_log_path);
 }
 
 fn main() {
@@ -94,10 +137,17 @@ fn main() {
             };
             let rewards =
                 reward::load_rewards_from_str(include_str!("../../assets/rewards.json"));
+            let reward_log_path = dir.join("rewards.json");
+            let reward_log = std::fs::read_to_string(&reward_log_path)
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
             app.manage(AppState {
                 game: Mutex::new(game),
                 rewards,
                 save_path,
+                reward_log: Mutex::new(reward_log),
+                reward_log_path,
             });
             Ok(())
         })
@@ -106,7 +156,9 @@ fn main() {
             complete_habit,
             add_habit,
             remove_habit,
-            spin
+            spin,
+            reward_log,
+            use_reward
         ])
         .run(tauri::generate_context!())
         .expect("error while running habit-casino");
