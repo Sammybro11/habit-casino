@@ -1,13 +1,15 @@
 use serde::{Serialize, Deserialize};
+use std::time::SystemTime;
 use rand::Rng;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Habit {
     pub name: String,
     pub completions: u32,
+    pub repeat_mins: Option<u32>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Clip {
     Red,
     Blue,
@@ -34,6 +36,29 @@ impl Clip {
     }
 }
 
+#[derive(Debug)]
+pub enum BonusError {
+    NoBonus,
+    Expired,
+    WrongHabit,
+}
+
+#[derive(Debug)]
+pub enum CompleteResult {
+    Normal {
+        clip: Clip,
+    },
+
+    Bonus {
+        bonus_clip: Clip,
+    },
+
+    Error {
+        err: BonusError,
+    },
+}
+
+
 #[derive(Debug, Clone, Copy)]
 pub enum Tier {
     One,
@@ -46,6 +71,21 @@ pub enum SpinResult {
     Reward(Tier),
     Bonus(Tier),
     Jackpot,
+}
+
+#[derive(Debug)]
+pub enum BonusResult {
+    Clip100,
+    Clip50,
+    Clip25,
+    Clip0,
+    // Will Implement Extra Spin Later, if worthwhile
+}
+
+#[derive(Debug)]
+pub struct ActiveBonus {
+    pub habit: usize,
+    pub expire: SystemTime,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -76,7 +116,7 @@ impl RewardTable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SaveData {
     pub habits: Vec<Habit>,
     pub inventory: Vec<Clip>,

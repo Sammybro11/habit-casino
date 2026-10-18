@@ -1,0 +1,7 @@
+[package]
+name = "habit-casino"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+habit-casino-core = { path = "../core" }

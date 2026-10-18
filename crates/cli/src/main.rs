@@ -1,17 +1,27 @@
-mod game;
-mod model;
-mod reward;
-
-use game::Game;
-use model::Tier;
+use habit_casino_core::game::Game;
+use habit_casino_core::model::{Tier, CompleteResult, SpinResult};
+use habit_casino_core::{reward, save};
 use std::io;
+use std::path::Path;
 
-use crate::model::SpinResult;
+const SAVE_PATH: &str = "save.json";
 
 fn main() {
-    let mut game = Game::new();
+    let mut game = match save::load_game(Path::new(SAVE_PATH)) {
+        Ok(Some(game)) => {
+            println!("Loaded save from {}", SAVE_PATH);
+            game
+        }
+        Ok(None) => Game::new(),
+        Err(e) => {
+            eprintln!("Couldn't load save ({}), starting fresh", e);
+            Game::new()
+        }
+    };
 
-    game.add_habit("Reading".to_string());
+    if game.habits.is_empty() {
+        game.add_habit("Reading".to_string(), Some(60));
+    }
     let rewards = reward::load_rewards();
 
     loop {
@@ -30,8 +40,25 @@ fn main() {
         match input.trim() {
             "1" => game.show_habits(),
             "2" => {
-                let earned = game.complete_habit(0);
-                println!("Earned {:?}", earned);
+                match game.complete_habit(0, false) {
+
+                    CompleteResult::Normal { clip } => {
+                        println!("Received {:?}", clip);
+                    }
+
+                    CompleteResult::Bonus { bonus_clip } => {
+                        println!(
+                            "BONUS COMPLETE! Extra {:?}",
+                            bonus_clip
+                        );
+                    }
+
+                    CompleteResult::Error { err } => {
+                        println!("Error: {:?}", err);
+                        continue;
+                    }
+                }
+                let _ = save::save_game(&game, Path::new(SAVE_PATH));
                 let tiers = game.available_tier();
                 println!(
                     "Available Tiers: {:?}",
@@ -73,7 +100,8 @@ fn main() {
                         SpinResult::Bonus(tier) => {
                             println!("Bonus for {:?}", tier);
                         }
-                    }                   
+                    }
+                    let _ = save::save_game(&game, Path::new(SAVE_PATH));
                 } else {
                     println!(
                         "Not enough clips!"
@@ -83,10 +111,12 @@ fn main() {
             "3" => game.show_inv(),
             "4" => break,
 
-            _ => {} 
+            _ => {}
 
         }
     }
 
+    let _ = save::save_game(&game, Path::new(SAVE_PATH));
+    println!("Saved to {}", SAVE_PATH);
     println!("{:#?}", game.inventory);
 }

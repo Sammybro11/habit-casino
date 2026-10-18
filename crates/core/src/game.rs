@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::{Duration, SystemTime};
 use rand::Rng;
 
 use crate::model::*;
@@ -6,6 +7,7 @@ use crate::model::*;
 pub struct Game {
     pub habits: Vec<Habit>,
     pub inventory: HashMap<Clip, u32>,
+    pub active_bonus: Option<ActiveBonus>
 }
 
 impl Game {
@@ -13,14 +15,19 @@ impl Game {
         Self {
             habits: Vec::new(),
             inventory: HashMap::new(),
+            active_bonus: None,
         }
     }
 
-    pub fn add_habit(&mut self, name: String) {
+    pub fn add_habit(&mut self, name: String, repeat_mins: Option<u32>) {
         self.habits.push(
             Habit {
                 name,
                 completions: 0,
+                repeat_mins: match repeat_mins {
+                    Some(mins) => Some(mins),
+                    None => None,
+                },
             }
         );
     }
@@ -28,21 +35,45 @@ impl Game {
     pub fn show_habits(&self) {
         for (idx, habit) in self.habits.iter().enumerate() {
             println!(
-                "{}. {} ({})",
+                "{}. {} ({}, {})",
                 idx,
                 habit.name,
-                habit.completions
+                habit.completions,
+                match habit.repeat_mins {
+                    Some(mins) => mins.to_string(),
+                    None => "Non-Repeating".to_string(),
+                }
             );
         }
     }
 
-    pub fn complete_habit(&mut self, index: usize) -> Clip {
-        self.habits[index].completions += 1;
+    pub fn complete_habit(&mut self, index: usize, bonus: bool) -> CompleteResult {
+        if !bonus {
+            self.habits[index].completions += 1;
 
-        let clip = Clip::random_clip();
-        *self.inventory.entry(clip).or_insert(0) += 1;
-        clip
+            let clip = Clip::random_clip();
+            *self.inventory.entry(clip).or_insert(0) += 1;
+
+            return CompleteResult::Normal{clip}
+        } else {
+            if let Some(active) = &self.active_bonus {
+                if active.habit == index {
+                    if SystemTime::now() <= active.expire {
+                        let bonus_clip = Clip::random_clip();
+                        *self.inventory.entry(bonus_clip).or_insert(0) += 1;
+                        self.active_bonus = None;
+
+                        return CompleteResult::Bonus {
+                            bonus_clip
+                        }
+                    }
+                }
+            }
+        }
+        CompleteResult::Error { err: BonusError::NoBonus }
+
     }
+
 
     pub fn show_inv(&self) {
         println!("{:#?}", self.inventory);
@@ -143,5 +174,27 @@ impl Game {
         }
     }
 
-
+    pub fn start_bonus(&mut self, habit: usize, percent: BonusResult) {
+        let duration = self.habits[habit].repeat_mins;
+        match duration {
+            Some(mins) => {
+                match percent {
+                   BonusResult::Clip100 => self.active_bonus = Some(ActiveBonus { 
+                    habit: habit, 
+                    expire: SystemTime::now() + Duration::from_secs(mins as u64 * 60)
+                }), 
+                   BonusResult::Clip50 => self.active_bonus = Some(ActiveBonus { 
+                    habit: habit, 
+                    expire: SystemTime::now() + Duration::from_secs(mins as u64 * 60) / 2
+                }), 
+                   BonusResult::Clip25 => self.active_bonus = Some(ActiveBonus { 
+                    habit: habit, 
+                    expire: SystemTime::now() + Duration::from_secs(mins as u64 * 60) / 4
+                }), 
+                   BonusResult::Clip0 => {}// Give Clip for Free
+                }
+                },
+            None => panic!("Bonus Duration not possible for habit")
+        }
+    }
 }
