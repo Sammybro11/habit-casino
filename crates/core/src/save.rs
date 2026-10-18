@@ -15,6 +15,7 @@ pub fn save_game(game: &Game, path: &Path) -> std::io::Result<()> {
     let data = SaveData {
         habits: game.habits.clone(),
         inventory,
+        active_bonus: game.active_bonus.clone(),
     };
 
     let json = serde_json::to_string_pretty(&data)
@@ -39,6 +40,41 @@ pub fn load_game(path: &Path) -> std::io::Result<Option<Game>> {
     Ok(Some(Game {
         habits: data.habits,
         inventory,
-        active_bonus: None,
+        active_bonus: data.active_bonus,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{ActiveBonus, BonusResult};
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn active_bonus_round_trips_through_save() {
+        let mut game = Game::new();
+        game.add_habit("Read".to_string(), Some(60));
+        game.active_bonus = Some(ActiveBonus {
+            habit: 0,
+            kind: BonusResult::Clip50,
+            expire: SystemTime::now() + Duration::from_secs(600),
+        });
+        let path = std::env::temp_dir().join(format!("hc-test-{}.json", std::process::id()));
+        save_game(&game, &path).unwrap();
+        let loaded = load_game(&path).unwrap().unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert!(loaded.bonus_ready(0));
+    }
+
+    #[test]
+    fn bonus_wheel_always_lands_on_a_variant() {
+        for _ in 0..200 {
+            match BonusResult::random() {
+                BonusResult::Clip100
+                | BonusResult::Clip50
+                | BonusResult::Clip25
+                | BonusResult::Clip0 => {}
+            }
+        }
+    }
 }

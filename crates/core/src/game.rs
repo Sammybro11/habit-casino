@@ -79,6 +79,18 @@ impl Game {
     }
 
 
+    pub fn grant_free_clip(&mut self) -> Clip {
+        let clip = Clip::random_clip();
+        *self.inventory.entry(clip).or_insert(0) += 1;
+        clip
+    }
+
+    pub fn bonus_ready(&self, index: usize) -> bool {
+        self.active_bonus
+            .as_ref()
+            .is_some_and(|b| b.habit == index && SystemTime::now() <= b.expire)
+    }
+
     pub fn show_inv(&self) {
         println!("{:#?}", self.inventory);
     }
@@ -179,26 +191,21 @@ impl Game {
     }
 
     pub fn start_bonus(&mut self, habit: usize, percent: BonusResult) {
-        let duration = self.habits[habit].repeat_mins;
-        match duration {
-            Some(mins) => {
-                match percent {
-                   BonusResult::Clip100 => self.active_bonus = Some(ActiveBonus { 
-                    habit: habit, 
-                    expire: SystemTime::now() + Duration::from_secs(mins as u64 * 60)
-                }), 
-                   BonusResult::Clip50 => self.active_bonus = Some(ActiveBonus { 
-                    habit: habit, 
-                    expire: SystemTime::now() + Duration::from_secs(mins as u64 * 60) / 2
-                }), 
-                   BonusResult::Clip25 => self.active_bonus = Some(ActiveBonus { 
-                    habit: habit, 
-                    expire: SystemTime::now() + Duration::from_secs(mins as u64 * 60) / 4
-                }), 
-                   BonusResult::Clip0 => {}// Give Clip for Free
-                }
-                },
-            None => panic!("Bonus Duration not possible for habit")
-        }
+        // ponytail: PDF rule is a flat 10-minute window; repeat habits get a
+        // window scaled to their interval, non-repeating ones get the flat 10
+        let duration = self.habits[habit].repeat_mins.unwrap_or(10);
+        let mins = duration;
+        let window_secs = match percent {
+            BonusResult::Clip100 => mins as u64 * 60,
+            BonusResult::Clip50 => mins as u64 * 30,
+            BonusResult::Clip25 => mins as u64 * 15,
+            BonusResult::Clip0 => return, // Give Clip for Free
+        };
+        let expire = SystemTime::now() + Duration::from_secs(window_secs);
+        self.active_bonus = Some(ActiveBonus {
+            habit,
+            kind: percent,
+            expire,
+        });
     }
 }

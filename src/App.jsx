@@ -17,6 +17,12 @@ const BTN =
   'transition-transform active:translate-x-[3px] active:translate-y-[3px] active:shadow-none'
 
 const TIER_NUM = { One: 1, Two: 2, Three: 3 }
+const BONUS_LABEL = {
+  Clip100: 'DO THE FULL HABIT',
+  Clip50: 'DO 50%',
+  Clip25: 'DO 25%',
+  Clip0: 'FREE CLIP!',
+}
 
 const TABS = [
   ['habits', 'Habits'],
@@ -45,9 +51,17 @@ export default function App() {
 
   async function complete(i) {
     const res = await invoke('complete_habit', { index: i })
-    const grabbed = res.Normal ? res.Normal.clip : null
+    const grabbed = res.Normal
+      ? res.Normal.clip
+      : res.Bonus
+        ? res.Bonus.bonus_clip
+        : null
     await refresh()
-    setCasino({ name: state.habits[i].name, grabbed })
+    setCasino({
+      index: i,
+      name: state.habits[i].name,
+      grabbed,
+    })
     setView('casino')
   }
 
@@ -124,7 +138,14 @@ export default function App() {
             {state.habits.map((h, i) => (
             <div key={i} className={`${CARD} bg-white flex items-center gap-2 p-2`}>
               <div className="min-w-0 flex-1">
-                <div className="truncate font-bold">{h.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-bold">{h.name}</span>
+                  {state.bonus?.habit === i && (
+                    <span className="border-2 border-black bg-[#9b5de5] px-1 text-[10px] font-bold text-white">
+                      DO {state.bonus.percent}% · {fmtTime(state.bonus.secs_left)}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-gray-500">
                   {h.completions} done
                   {h.repeat_mins ? ` · every ${h.repeat_mins} min` : ''}
@@ -237,22 +258,6 @@ export default function App() {
                 </button>
               </div>
             ))}
-            {used.length > 0 && (
-              <div className="mt-2 text-xs font-bold uppercase text-gray-400">
-                Used
-              </div>
-            )}
-            {used.map((r) => (
-              <div
-                key={r.id}
-                className={`${CARD} flex items-center gap-3 bg-gray-100 p-2 opacity-60`}
-              >
-                <div className="min-w-0 flex-1 line-through">
-                  <div className="font-bold">{r.reward.title}</div>
-                </div>
-                <span className="text-xs uppercase text-gray-400">used</span>
-              </div>
-            ))}
           </div>
         </div>
       )}
@@ -279,7 +284,7 @@ function Casino({ state, casino, onHome }) {
 
     let oc
     try {
-      oc = await invoke('spin', { tier })
+      oc = await invoke('spin', { tier, index: casino.index })
     } catch (e) {
       clearInterval(iv)
       setSpinning(false)
@@ -303,10 +308,11 @@ function Casino({ state, casino, onHome }) {
     outcome?.result === 'Jackpot'
       ? `JACKPOT! ${outcome.reward.title}`
       : outcome?.result?.Bonus != null
-        ? 'BONUS SPIN! Your next spin is upgraded'
+        ? `BONUS! Tier ${TIER_NUM[outcome.result.Bonus]} reward collected free`
         : outcome?.result?.Reward != null
           ? outcome.reward.title
           : null
+  const bonusSpin = outcome?.bonus
 
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[#faf3e0] p-4 font-mono">
@@ -396,6 +402,17 @@ function Casino({ state, casino, onHome }) {
           )}
         </div>
       )}
+      {bonusSpin && (
+        <div className={`${CARD} bg-[#9b5de5] px-6 py-3 text-center text-white`}>
+          <div className="text-xs font-bold uppercase">Bonus wheel</div>
+          <div className="text-2xl font-black">{BONUS_LABEL[bonusSpin.kind]}</div>
+          {bonusSpin.window_secs != null && (
+            <div className="text-xs">
+              window: {fmtTime(bonusSpin.window_secs)} — finish it on the habit card
+            </div>
+          )}
+        </div>
+      )}
       {outcome?.result?.Bonus != null && (
         <button className={`${BTN} px-6 py-2`} onClick={onHome}>
           Back
@@ -423,6 +440,12 @@ function tierCost(inventory, t) {
       .map(([c]) => [c, 3])
   }
   return []
+}
+
+function fmtTime(secs) {
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 
 function randomClip() {

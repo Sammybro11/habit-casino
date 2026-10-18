@@ -60,7 +60,7 @@ needs. `Cargo.lock` is gitignored.
 - `Clip` derives `Hash`/`Eq` (plus `Serialize`/`Deserialize` for saves) so it can key
   the inventory `HashMap`; keep those derives.
 - `repeat_mins: Option<u32>` on `Habit`: `None` means non-repeating. `start_bonus`
-  panics for non-repeating habits — bonus logic assumes a repeat interval exists.
+  falls back to the PDF's flat 10-minute window for non-repeating habits.
 - When changing `CompleteResult` or `SpinResult` variants, update the matches in the
   CLI shell (`crates/cli/src/main.rs`) — it is the only consumer and has historically
   lagged the enum definitions.

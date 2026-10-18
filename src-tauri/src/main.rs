@@ -2,11 +2,14 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::Mutex,
+    time::SystemTime,
 };
 
 use habit_casino_core::{
     game::Game,
-    model::{Clip, CompleteResult, Habit, RewardDesc, RewardTable, SpinResult, Tier},
+    model::{
+        BonusResult, Clip, CompleteResult, Habit, RewardDesc, RewardTable, SpinResult, Tier,
+    },
     reward, save,
 };
 use serde::{Deserialize, Serialize};
@@ -38,12 +41,36 @@ struct GameState {
     habits: Vec<Habit>,
     inventory: HashMap<Clip, u32>,
     tiers: Vec<Tier>,
+    bonus: Option<BonusView>,
+}
+
+#[derive(Serialize)]
+struct BonusView {
+    habit: usize,
+    percent: u32,
+    secs_left: u64,
 }
 
 #[derive(Serialize)]
 struct SpinOutcome {
     result: SpinResult,
     reward: Option<RewardDesc>,
+    bonus: Option<BonusSpin>,
+}
+
+#[derive(Serialize)]
+struct BonusSpin {
+    kind: BonusResult,
+    window_secs: Option<u64>,
+}
+
+fn bonus_percent(kind: BonusResult) -> u32 {
+    match kind {
+        BonusResult::Clip100 => 100,
+        BonusResult::Clip50 => 50,
+        BonusResult::Clip25 => 25,
+        BonusResult::Clip0 => 0,
+    }
 }
 
 #[tauri::command]
@@ -53,13 +80,22 @@ fn game_state(state: State<AppState>) -> GameState {
         habits: game.habits.clone(),
         inventory: game.inventory.clone(),
         tiers: game.available_tier(),
+        bonus: game.active_bonus.as_ref().and_then(|b| {
+            let secs = b.expire.duration_since(SystemTime::now()).ok()?.as_secs();
+            Some(BonusView {
+                habit: b.habit,
+                percent: bonus_percent(b.kind),
+                secs_left: secs,
+            })
+        }),
     }
 }
 
 #[tauri::command]
 fn complete_habit(index: usize, state: State<AppState>) -> CompleteResult {
     let mut game = state.game.lock().unwrap();
-    let result = game.complete_habit(index, false);
+    let bonus = game.bonus_ready(index);
+    let result = game.complete_habit(index, bonus);
     let _ = save::save_game(&game, &state.save_path);
     result
 }
@@ -79,17 +115,34 @@ fn remove_habit(index: usize, state: State<AppState>) {
 }
 
 #[tauri::command]
-fn spin(tier: Tier, state: State<AppState>) -> Result<SpinOutcome, String> {
+fn spin(tier: Tier, index: usize, state: State<AppState>) -> Result<SpinOutcome, String> {
     let mut game = state.game.lock().unwrap();
     if !game.activate_tier(tier) {
         return Err("Not enough clips".into());
     }
     let result = game.spin(tier);
-    let reward = match &result {
+    let (reward, bonus) = match &result {
         SpinResult::Reward(_) | SpinResult::Jackpot => {
-            Some(state.rewards.random_reward(&result).clone())
+            (Some(state.rewards.random_reward(&result).clone()), None)
         }
-        SpinResult::Bonus(_) => None,
+        SpinResult::Bonus(tier) => {
+            // landing on BONUS auto-collects the tier reward, then arms the
+            // discounted re-do window on the habit
+            let reward =
+                Some(state.rewards.random_reward(&SpinResult::Reward(*tier)).clone());
+            let bonus = BonusResult::random();
+            game.start_bonus(index, bonus);
+            let window_secs = if bonus == BonusResult::Clip0 {
+                game.grant_free_clip();
+                None
+            } else {
+                game.active_bonus
+                    .as_ref()
+                    .and_then(|b| b.expire.duration_since(SystemTime::now()).ok())
+                    .map(|d| d.as_secs())
+            };
+            (reward, Some(BonusSpin { kind: bonus, window_secs }))
+        }
     };
     let _ = save::save_game(&game, &state.save_path);
     if let Some(reward) = &reward {
@@ -102,7 +155,7 @@ fn spin(tier: Tier, state: State<AppState>) -> Result<SpinOutcome, String> {
         });
         save_reward_log(&log, &state.reward_log_path);
     }
-    Ok(SpinOutcome { result, reward })
+    Ok(SpinOutcome { result, reward, bonus })
 }
 
 #[tauri::command]

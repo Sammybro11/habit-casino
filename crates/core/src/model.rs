@@ -73,7 +73,7 @@ pub enum SpinResult {
     Jackpot,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum BonusResult {
     Clip100,
     Clip50,
@@ -82,9 +82,24 @@ pub enum BonusResult {
     // Will Implement Extra Spin Later, if worthwhile
 }
 
-#[derive(Debug)]
+impl BonusResult {
+    /// ponytail: wheel slice odds hand-picked (75% most common, FREE rarest);
+    /// Extra segment unimplemented, swap bands in if it lands
+    pub fn random() -> Self {
+        let roll = rand::rng().random_range(0..100);
+        match roll {
+            0..45 => BonusResult::Clip100,
+            45..75 => BonusResult::Clip50,
+            75..90 => BonusResult::Clip25,
+            _ => BonusResult::Clip0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveBonus {
     pub habit: usize,
+    pub kind: BonusResult,
     pub expire: SystemTime,
 }
 
@@ -120,4 +135,6 @@ impl RewardTable {
 pub struct SaveData {
     pub habits: Vec<Habit>,
     pub inventory: Vec<Clip>,
+    #[serde(default)]
+    pub active_bonus: Option<ActiveBonus>,
 }
