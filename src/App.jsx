@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { CasinoMachine } from './slotjs/machine'
+import './slotjs/slot-machine.css'
 
 const CLIPS = {
   Red: '#e63946',
@@ -28,6 +30,10 @@ const TABS = [
   ['habits', 'Habits'],
   ['clips', 'Stash'],
 ]
+
+const SM_SYMBOLS = Object.entries(CLIPS).map(([label, color]) => ({ label, color }))
+const RS = 34
+const MACHINE = RS * 10
 
 export default function App() {
   const [state, setState] = useState(null)
@@ -267,49 +273,84 @@ export default function App() {
 
 function Casino({ state, casino, onHome }) {
   const [tier, setTier] = useState('One')
-  const [reels, setReels] = useState(['Gold', 'Gold', 'Gold'])
-  const [frozen, setFrozen] = useState(3)
   const [spinning, setSpinning] = useState(false)
   const [outcome, setOutcome] = useState(null)
   const [error, setError] = useState(null)
+  const wrapRef = useRef(null)
+  const machineRef = useRef(null)
+  const homeTimerRef = useRef(null)
+
+  useEffect(() => {
+    machineRef.current = new CasinoMachine(wrapRef.current, {
+      symbols: SM_SYMBOLS,
+      tierRing: { One: 0, Two: 1, Three: 2 },
+      onOutcome: (oc) => {
+        setOutcome(oc)
+        setSpinning(false)
+        if (oc.result.Bonus == null) {
+          homeTimerRef.current = setTimeout(onHome, 3000)
+        }
+      },
+    })
+
+    return () => {
+      clearTimeout(homeTimerRef.current)
+      machineRef.current.destroy()
+    }
+  }, [])
 
   async function spin() {
     setError(null)
     setOutcome(null)
     setSpinning(true)
-    setFrozen(3)
-    const iv = setInterval(() => {
-      setReels((r) => r.map((c, i) => (i < frozen ? c : randomClip())))
-    }, 80)
+    machineRef.current.start()
 
     let oc
     try {
       oc = await invoke('spin', { tier, index: casino.index })
     } catch (e) {
-      clearInterval(iv)
+      machineRef.current.abort()
       setSpinning(false)
-      setFrozen(3)
       setError(String(e))
       return
     }
-    clearInterval(iv)
 
-    setTimeout(() => setFrozen(1), 900)
-    setTimeout(() => setFrozen(2), 1300)
-    setTimeout(() => {
-      setFrozen(3)
-      setOutcome(oc)
-      setSpinning(false)
-      if (oc.result.Bonus == null) setTimeout(onHome, 3000)
-    }, 1700)
+    machineRef.current.reveal(oc, tier)
+  }
+
+  const result = outcome?.result
+
+  let cEmoji = '🎰'
+  let cLabel = 'SPIN'
+  let cBg = '#1c1b29'
+  let cFg = '#faf3e0'
+  if (spinning) {
+    cEmoji = '⋯'
+    cLabel = ''
+  }
+  if (result === 'Jackpot') {
+    cEmoji = '💎'
+    cLabel = 'JACKPOT'
+    cBg = '#ffd60a'
+    cFg = '#000'
+  } else if (result?.Bonus != null) {
+    cEmoji = '🎲'
+    cLabel = 'BONUS'
+    cBg = '#9b5de5'
+    cFg = '#fff'
+  } else if (result?.Reward != null) {
+    cEmoji = '🎁'
+    cLabel = `TIER ${TIER_NUM[result.Reward]}`
+    cBg = '#ffd60a'
+    cFg = '#000'
   }
 
   const resultLine =
-    outcome?.result === 'Jackpot'
+    result === 'Jackpot'
       ? `JACKPOT! ${outcome.reward.title}`
-      : outcome?.result?.Bonus != null
-        ? `BONUS! Tier ${TIER_NUM[outcome.result.Bonus]} reward collected free`
-        : outcome?.result?.Reward != null
+      : result?.Bonus != null
+        ? `BONUS! Tier ${TIER_NUM[result.Bonus]} reward collected free`
+        : result?.Reward != null
           ? outcome.reward.title
           : null
   const bonusSpin = outcome?.bonus
@@ -330,18 +371,36 @@ function Casino({ state, casino, onHome }) {
         </div>
       )}
 
-      <div className={`${CARD} flex gap-2 bg-[#1c1b29] p-6`}>
-        {reels.map((clip, i) => (
+      <div
+        className={`${CARD} overflow-hidden bg-[#1c1b29] p-4 ${result === 'Jackpot' ? 'hc-shake' : ''}`}
+      >
+        <div className="relative" style={{ width: MACHINE, height: MACHINE }}>
           <div
-            key={i}
-            className={`flex h-24 w-20 items-center justify-center border-2 border-black text-3xl font-black ${
-              i < frozen ? 'bg-white' : 'animate-pulse bg-white'
-            }`}
-            style={{ color: CLIPS[clip] }}
+            ref={wrapRef}
+            className="absolute inset-0"
+            style={{ '--reelSize': `${RS}px` }}
+          />
+          <div
+            className="absolute z-10 flex flex-col items-center justify-center gap-1 rounded-full border-2 border-black"
+            style={{
+              left: RS * 3,
+              top: RS * 3,
+              width: RS * 4,
+              height: RS * 4,
+              background: cBg,
+              color: cFg,
+            }}
           >
-            {clip[0]}
+            <div className={`text-4xl leading-none ${spinning ? 'animate-pulse' : ''}`}>
+              {cEmoji}
+            </div>
+            {cLabel && (
+              <div className="text-[10px] font-black uppercase tracking-widest">
+                {cLabel}
+              </div>
+            )}
           </div>
-        ))}
+        </div>
       </div>
 
       {!outcome && !spinning && (
@@ -390,8 +449,6 @@ function Casino({ state, casino, onHome }) {
         </>
       )}
 
-      {spinning && <div className="text-xl font-bold">...</div>}
-
       {resultLine && (
         <div className={`${CARD} bg-[#ffd60a] px-6 py-4 text-center text-lg font-bold`}>
           {resultLine}
@@ -413,7 +470,7 @@ function Casino({ state, casino, onHome }) {
           )}
         </div>
       )}
-      {outcome?.result?.Bonus != null && (
+      {result?.Bonus != null && (
         <button className={`${BTN} px-6 py-2`} onClick={onHome}>
           Back
         </button>
@@ -446,9 +503,4 @@ function fmtTime(secs) {
   const m = Math.floor(secs / 60)
   const s = secs % 60
   return `${m}:${String(s).padStart(2, '0')}`
-}
-
-function randomClip() {
-  const names = Object.keys(CLIPS)
-  return names[Math.floor(Math.random() * names.length)]
 }

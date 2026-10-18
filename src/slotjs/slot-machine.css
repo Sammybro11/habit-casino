@@ -1,0 +1,76 @@
+.sm__reel {
+    --index: 0;
+
+    position: absolute;
+    top: calc(var(--index) * var(--reelSize));
+    left: calc(var(--index) * var(--reelSize));
+    width: calc(100% - var(--index) * 2 * var(--reelSize));
+    height: calc(100% - var(--index) * 2 * var(--reelSize));
+    border: 2px solid #000;
+    border-radius: 100%;
+    background: #fff;
+    overflow: hidden;
+    will-change: transform;
+    transition: opacity 0.25s, background 0.25s, box-shadow 0.25s;
+}
+
+.sm__reel.is-win {
+    background: #ffd60a;
+    box-shadow: 0 0 36px 6px rgba(255, 214, 10, 0.65);
+}
+
+.sm__reel.is-dim {
+    opacity: 0.35;
+}
+
+.sm__cell {
+    position: absolute;
+    height: var(--reelSize);
+    line-height: calc(var(--reelSize) * 0.9);
+    font-size: calc(var(--reelSize) / 2);
+    top: 50%;
+    left: 0;
+    width: 50%;
+    margin-top: calc(var(--reelSize) / -2);
+    transform-origin: center right;
+}
+
+.sm__cell--has-shadow {
+    transition: opacity linear 0.125s;
+}
+
+.is-stop .sm__cell--has-shadow {
+    opacity: 0 !important;
+}
+
+.sm__cell--has-blur {
+    filter: blur(calc(var(--reelSize) / 8));
+}
+
+.sm__figure {
+    display: inline-block;
+    text-align: center;
+    width: var(--reelSize);
+    height: 100%;
+    font-weight: 900;
+    color: #fff;
+}
+
+@keyframes hc-shake-kf {
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+
+    25% {
+        transform: rotate(1.2deg);
+    }
+
+    75% {
+        transform: rotate(-1.2deg);
+    }
+}
+
+.hc-shake {
+    animation: hc-shake-kf 0.18s ease-in-out 8;
+}
