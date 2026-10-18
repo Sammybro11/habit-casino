@@ -47,6 +47,10 @@ impl Game {
         }
     }
 
+    pub fn remove_habit(&mut self, index: usize) -> Habit {
+        self.habits.remove(index)
+    }
+
     pub fn complete_habit(&mut self, index: usize, bonus: bool) -> CompleteResult {
         if !bonus {
             self.habits[index].completions += 1;

@@ -11,7 +11,7 @@ const CLIPS = {
   Gold: '#d4af37',
 }
 
-const CARD = 'border-2 border-black bg-white shadow-[4px_4px_0_#000]'
+const CARD = 'border-2 border-black shadow-[4px_4px_0_#000]'
 const BTN =
   'border-2 border-black bg-[#ffd60a] font-bold shadow-[3px_3px_0_#000] ' +
   'transition-transform active:translate-x-[3px] active:translate-y-[3px] active:shadow-none'
@@ -24,17 +24,37 @@ export default function App() {
   const [spinning, setSpinning] = useState(false)
   const [outcome, setOutcome] = useState(null)
   const [error, setError] = useState(null)
+  const [newName, setNewName] = useState('')
+  const [newMins, setNewMins] = useState('')
 
   const refresh = () => invoke('game_state').then(setState)
   useEffect(() => {
     refresh()
   }, [])
 
-  async function complete() {
+  async function complete(i) {
     setError(null)
     setOutcome(null)
-    const res = await invoke('complete_habit', { index: 0 })
+    const res = await invoke('complete_habit', { index: i })
     if (res.Normal) console.log('clip:', res.Normal.clip)
+    refresh()
+  }
+
+  async function removeHabit(i) {
+    setError(null)
+    await invoke('remove_habit', { index: i })
+    refresh()
+  }
+
+  async function addHabit() {
+    const name = newName.trim()
+    if (!name) return
+    await invoke('add_habit', {
+      name,
+      repeatMins: newMins ? Number(newMins) : null,
+    })
+    setNewName('')
+    setNewMins('')
     refresh()
   }
 
@@ -96,18 +116,47 @@ export default function App() {
         <div className="flex w-56 flex-col gap-2">
           <div className="text-sm font-bold uppercase">Habits</div>
           {state.habits.map((h, i) => (
-            <div key={i} className={`${CARD} flex items-center gap-2 p-2`}>
+            <div key={i} className={`${CARD} bg-white flex items-center gap-2 p-2`}>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-bold">{h.name}</div>
                 <div className="text-xs text-gray-500">
                   {h.completions} done
                 </div>
               </div>
-              <button className={`${BTN} px-2 py-1 text-sm`} onClick={complete}>
+              <button className={`${BTN} px-2 py-1 text-sm`} onClick={() => complete(i)}>
                 Done
+              </button>
+              <button
+                className="text-lg leading-none text-gray-400 hover:text-black"
+                title="Remove"
+                onClick={() => removeHabit(i)}
+              >
+                ×
               </button>
             </div>
           ))}
+          <div className="flex flex-col gap-1">
+            <input
+              className="border-2 border-black bg-white px-2 py-1 text-sm"
+              placeholder="New habit"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addHabit()}
+            />
+            <div className="flex gap-1">
+              <input
+                className="w-20 border-2 border-black bg-white px-2 py-1 text-sm"
+                placeholder="mins"
+                inputMode="numeric"
+                value={newMins}
+                onChange={(e) => setNewMins(e.target.value.replace(/\D/g, ''))}
+                onKeyDown={(e) => e.key === 'Enter' && addHabit()}
+              />
+              <button className={`${BTN} flex-1 px-2 py-1 text-sm`} onClick={addHabit}>
+                Add
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* machine */}
@@ -135,7 +184,7 @@ export default function App() {
                   tier === t ? 'bg-[#ffd60a]' : 'bg-white'
                 }`}
               >
-                Tier {t}
+                Tier {t} · {t === 'One' ? 'free' : t === 'Two' ? '2 clips' : '3 clips / 1 gold'}
               </button>
             ))}
           </div>

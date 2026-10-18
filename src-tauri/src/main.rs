@@ -46,6 +46,20 @@ fn complete_habit(index: usize, state: State<AppState>) -> CompleteResult {
 }
 
 #[tauri::command]
+fn add_habit(name: String, repeat_mins: Option<u32>, state: State<AppState>) {
+    let mut game = state.game.lock().unwrap();
+    game.add_habit(name, repeat_mins);
+    let _ = save::save_game(&game, &state.save_path);
+}
+
+#[tauri::command]
+fn remove_habit(index: usize, state: State<AppState>) {
+    let mut game = state.game.lock().unwrap();
+    game.remove_habit(index);
+    let _ = save::save_game(&game, &state.save_path);
+}
+
+#[tauri::command]
 fn spin(tier: Tier, state: State<AppState>) -> Result<SpinOutcome, String> {
     let mut game = state.game.lock().unwrap();
     if !game.activate_tier(tier) {
@@ -87,7 +101,13 @@ fn main() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![game_state, complete_habit, spin])
+        .invoke_handler(tauri::generate_handler![
+            game_state,
+            complete_habit,
+            add_habit,
+            remove_habit,
+            spin
+        ])
         .run(tauri::generate_context!())
         .expect("error while running habit-casino");
 }
