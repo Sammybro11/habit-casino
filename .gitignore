@@ -2,3 +2,5 @@
 Cargo.lock
 .DS_Store
 save.json
+node_modules
+dist

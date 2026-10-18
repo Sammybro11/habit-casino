@@ -1,4 +1,3 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/cli"]
-# Future Tauri app will be added here as e.g. "src-tauri"
+members = ["crates/core", "crates/cli", "src-tauri"]

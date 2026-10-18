@@ -36,14 +36,14 @@ impl Clip {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum BonusError {
     NoBonus,
     Expired,
     WrongHabit,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum CompleteResult {
     Normal {
         clip: Clip,
@@ -59,14 +59,14 @@ pub enum CompleteResult {
 }
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Tier {
     One,
     Two,
     Three,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum SpinResult {
     Reward(Tier),
     Bonus(Tier),
@@ -88,7 +88,7 @@ pub struct ActiveBonus {
     pub expire: SystemTime,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RewardDesc {
     pub title: String,
     pub duration: u32,
