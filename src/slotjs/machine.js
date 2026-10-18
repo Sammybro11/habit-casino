@@ -55,9 +55,7 @@ export class Reel {
         symbols = shuffle(symbols);
 
         symbols.forEach((symbol, symbolIndex) => {
-            const cellFigure = createElement(C_FIGURE, symbol.label);
-
-            cellFigure.style.background = symbol.color;
+            const cellFigure = createElement(C_FIGURE, symbol);
 
             const cell = createElement(C_CELL, cellFigure, symbolIndex * alpha);
 

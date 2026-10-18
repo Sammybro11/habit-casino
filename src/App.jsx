@@ -31,8 +31,17 @@ const TABS = [
   ['clips', 'Stash'],
 ]
 
-const SM_SYMBOLS = Object.entries(CLIPS).map(([label, color]) => ({ label, color }))
-const RS = 34
+const CLIP_EMOJIS = {
+  Red: '❤️',
+  Blue: '🫐',
+  Green: '🍀',
+  Yellow: '🍋',
+  Purple: '🍇',
+  Orange: '🍊',
+  Gold: '👑',
+}
+const SM_SYMBOLS = Object.values(CLIP_EMOJIS)
+const RS = 44
 const MACHINE = RS * 10
 
 export default function App() {
